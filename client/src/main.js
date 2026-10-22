@@ -1,348 +1,223 @@
 import './style.css';
 import * as THREE from 'three';
 
+// Mobile-first regional map: one draw call per repeated box type, capped at 30 FPS.
 const host = document.querySelector('#map');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#b7d4d0');
-scene.fog = new THREE.Fog('#b7d4d0', 900, 2400);
-
-const camera = new THREE.PerspectiveCamera(43, innerWidth / innerHeight, 0.1, 5000);
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
-// Mobile-first rendering: fewer pixels means much less GPU work.
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.0));
+const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 5000);
+const renderer = new THREE.WebGLRenderer({
+  antialias: false,
+  alpha: false,
+  powerPreference: 'low-power',
+  stencil: false,
+  depth: true
+});
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 0.7));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.08;
-// Real-time shadows across thousands of map pieces are expensive on phones.
+renderer.toneMapping = THREE.NoToneMapping;
 renderer.shadowMap.enabled = false;
 host.appendChild(renderer.domElement);
 
-scene.add(new THREE.HemisphereLight('#f1fbff', '#718c80', 2.1));
-const sun = new THREE.DirectionalLight('#fff4d8', 2.5);
+scene.add(new THREE.HemisphereLight('#f1fbff', '#718c80', 1.55));
+const sun = new THREE.DirectionalLight('#fff4d8', 1.1);
 sun.position.set(-45, 70, 25);
-sun.castShadow = false;
-sun.shadow.mapSize.set(1024, 1024);
-sun.shadow.camera.left = -80; sun.shadow.camera.right = 80;
-sun.shadow.camera.top = 80; sun.shadow.camera.bottom = -80;
 scene.add(sun);
 
-const world = new THREE.Group();
-scene.add(world);
-const mat = (color, roughness=1, extra={}) => new THREE.MeshStandardMaterial({color, roughness, ...extra});
-const materials = {
-  land: mat('#8cae91'), field: mat('#9cbd9b'), road: mat('#343f45'), roadEdge: mat('#d5d5c2'),
-  sidewalk: mat('#d1d3c5'), white: mat('#f4f0d8'), yellow: mat('#f4cf69'),
-  water: mat('#48a9b7', .25, {metalness:.08}), waterLight: mat('#91d5d6', .3),
-  bridge: mat('#c8c9bc'), bridgeSide: mat('#788d8c'), pole: mat('#303e42'),
-  red: mat('#fa5b56', .35, {emissive:'#7c1515',emissiveIntensity:.35}),
-  amber: mat('#ffc85d', .35, {emissive:'#755018',emissiveIntensity:.25}),
-  green: mat('#7ef09a', .35, {emissive:'#166c35',emissiveIntensity:.4})
+const map = new THREE.Group();
+scene.add(map);
+const material = (color, basic = false) => basic
+  ? new THREE.MeshBasicMaterial({ color })
+  : new THREE.MeshLambertMaterial({ color });
+const M = {
+  land: material('#8cae91', true),
+  field: material('#9cbd9b', true),
+  road: material('#343f45', true),
+  edge: material('#d5d5c2', true),
+  white: material('#f4f0d8', true),
+  yellow: material('#f4cf69', true),
+  bank: material('#bda77d', true),
+  bed: material('#806f55', true),
+  water: material('#36a8bd', true),
+  bridge: material('#c8c9bc', true),
+  rail: material('#788d8c', true),
+  pole: material('#303e42', true),
+  green: material('#7bcf92', true)
 };
 
-function slab(w,h,d,material,x,y,z,parent=world,shadow=false){
-  const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
-  mesh.position.set(x,y,z);
-  mesh.receiveShadow=true;
-  mesh.castShadow=shadow;
-  parent.add(mesh);
-  return mesh;
+// Store repeated cuboids as transform data, then create a single InstancedMesh per type.
+const batches = new Map();
+const dummy = new THREE.Object3D();
+function addBox(w, h, d, mat, x, y, z, rotY = 0) {
+  const key = [w, h, d, mat.uuid].join(':');
+  if (!batches.has(key)) batches.set(key, { w, h, d, mat, transforms: [] });
+  batches.get(key).transforms.push({ x, y, z, rotY });
 }
-function flat(w,d,material,x,z,y=.03,parent=world){
-  return slab(w,.12,d,material,x,y,z,parent);
-}
-
-// One continuous, empty landscape: no buildings or structures except roads and bridges.
-flat(170,140,materials.land,0,-1,-.18);
-for(let x=-75;x<=75;x+=15) for(let z=-60;z<=60;z+=15){
-  if(((x/15+z/15)%3)===0) flat(13.8,13.8,materials.field,x,z,-.08);
+function addFlat(w, d, mat, x, z, y = 0) {
+  addBox(w, 0.12, d, mat, x, y, z);
 }
 
-// Main roads are laid out first; river and bridges are layered above them.
-const xRoads=[-60,-40,-20,0,20,40,60];
-const zRoads=[-50,-30,-10,10,30,50];
-for(const z of zRoads){
-  flat(158,7.4,materials.road,0,z,.015);
-  flat(158,.34,materials.sidewalk,0,z-4.05,.075);
-  flat(158,.34,materials.sidewalk,0,z+4.05,.075);
-  for(let x=-76;x<77;x+=7.5) flat(3.2,.18,materials.white,x,z,.105);
-}
-for(const x of xRoads){
-  flat(7.4,128,materials.road,x,0,.02);
-  flat(.34,128,materials.sidewalk,x-4.05,0,.078);
-  flat(.34,128,materials.sidewalk,x+4.05,0,.078);
-  for(let z=-61;z<62;z+=7.5) flat(.18,3.2,materials.white,x,z,.11);
-}
-// Crosswalks at each large junction.
-for(const x of xRoads) for(const z of zRoads){
-  for(let k=-2;k<=2;k++){
-    flat(.65,3.6,materials.white,x+k*1.15,z-4.8,.12);
-    flat(3.6,.65,materials.white,x-4.8,z+k*1.15,.12);
+const columns = 6, rows = 6, citySpacingX = 310, citySpacingZ = 270;
+const cities = [];
+for (let row = 0; row < rows && cities.length < 33; row++) {
+  for (let col = 0; col < columns && cities.length < 33; col++) {
+    const x = col * citySpacingX + (row % 2 ? 34 : 0) + (col % 3) * 13;
+    const z = row * citySpacingZ + (col % 2 ? 23 : 0) + (row % 3) * 11;
+    cities.push({ id: cities.length + 1, x, z, col, row });
+    // Compact 5x5 street grid per city; no decorative micro-geometry.
+    addFlat(150, 150, M.land, x, z, -0.18);
+    for (let i = -2; i <= 2; i++) {
+      const offset = i * 25;
+      addFlat(150, 7, M.road, x, z + offset, 0);
+      addFlat(7, 150, M.road, x + offset, z, 0.01);
+      addFlat(150, 0.3, M.edge, x, z + offset - 3.8, 0.07);
+      addFlat(150, 0.3, M.edge, x, z + offset + 3.8, 0.07);
+      addFlat(0.3, 150, M.edge, x + offset - 3.8, z, 0.07);
+      addFlat(0.3, 150, M.edge, x + offset + 3.8, z, 0.07);
+    }
+    // A small green square park in every city.
+    addFlat(18, 18, M.green, x + 42, z - 42, 0.02);
+    for (let t = -1; t <= 1; t++) {
+      addFlat(1.8, 0.2, M.white, x + 42 + t * 4, z - 42, 0.1);
+      addFlat(0.2, 1.8, M.white, x + 42, z - 42 + t * 4, 0.1);
+    }
   }
 }
 
-// Recessed canal along the boundary between city areas, not through the city centre.
-const canalShape=new THREE.Shape();
-canalShape.moveTo(37,72); canalShape.bezierCurveTo(34,50,40,37,38,18);
-canalShape.bezierCurveTo(36,0,43,-15,40,-32); canalShape.bezierCurveTo(37,-48,42,-60,39,-72);
-canalShape.lineTo(58,-72); canalShape.bezierCurveTo(61,-55,55,-44,58,-29);
-canalShape.bezierCurveTo(61,-10,54,4,57,20); canalShape.bezierCurveTo(60,39,54,52,58,72); canalShape.closePath();
-const canalBed=new THREE.Mesh(new THREE.ShapeGeometry(canalShape,40),mat('#536e68'));
-canalBed.rotation.x=-Math.PI/2; canalBed.position.y=-.42; canalBed.receiveShadow=true; world.add(canalBed);
-const waterShape=new THREE.Shape();
-waterShape.moveTo(42,72); waterShape.bezierCurveTo(39,50,45,37,43,18);
-waterShape.bezierCurveTo(41,0,48,-15,45,-32); waterShape.bezierCurveTo(42,-48,47,-60,44,-72);
-waterShape.lineTo(52,-72); waterShape.bezierCurveTo(55,-55,49,-44,52,-29);
-waterShape.bezierCurveTo(55,-10,48,4,51,20); waterShape.bezierCurveTo(54,39,48,52,52,72); waterShape.closePath();
-const water=new THREE.Mesh(new THREE.ShapeGeometry(waterShape,40),materials.water);
-water.rotation.x=-Math.PI/2; water.position.y=-.19; water.receiveShadow=true; world.add(water);
-// Raised grass embankments and concrete channel edges.
-const bankMat=mat('#71947c');
-for(const side of [-1,1]){
-  const x=side<0?39.5:55.5;
-  slab(4.5,.42,144,bankMat,x,-.02,0,world);
-  slab(.34,.18,144,materials.sidewalk,side<0?41.5:53,-.02,0);
-}
-// Bridges cross the channel at actual road approaches and connect both sides.
-function makeBridge(position, centerZ=0){
-  slab(21,.42,8.2,materials.bridge,position,.18,centerZ,world,true);
-  for(const side of [-1,1]){
-    slab(21,.18,.2,materials.bridgeSide,position,.55,centerZ+side*3.85);
-    for(let t=-9;t<=9;t+=3) slab(.14,.5,.14,materials.bridgeSide,position+t,.78,centerZ+side*3.85);
-  }
-  for(let t=-7;t<=7;t+=4) flat(2.1,.13,materials.yellow,position+t,centerZ,.42);
-}
-for(const z of [-48,-24,0,24,48]) makeBridge(49,z);
-
-// The regional map contains 33 distinct, named city areas. Buildings remain disabled.
-function cityLabel(name,x,z){
-  const canvas=document.createElement('canvas'); canvas.width=512; canvas.height=128;
-  const ctx=canvas.getContext('2d');
-  ctx.fillStyle='rgba(15,37,38,.82)'; ctx.beginPath(); ctx.roundRect(8,8,496,112,22); ctx.fill();
-  ctx.strokeStyle='#d4ff63'; ctx.lineWidth=4; ctx.stroke();
-  ctx.font='700 42px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#f2f7e9';
-  ctx.fillText(name,256,64);
-  const texture=new THREE.CanvasTexture(canvas); texture.colorSpace=THREE.SRGBColorSpace;
-  const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthWrite:false}));
-  sprite.position.set(x,1.8,z); sprite.scale.set(10,2.5,1); world.add(sprite);
-}
-const cityX=[-70,-56,-42,-28,-14,0,64,69,74,79,84];
-const cityZ=[-48,0,48];
-let cityIndex=1;
-for(const z of cityZ) for(const x of cityX){
-  cityLabel('ГОРОД '+String(cityIndex).padStart(2,'0'),x,z);
-  cityIndex++;
-}
-// Traffic lights on corners of selected intersections; each has red, amber and green lenses.
-function trafficLight(x,z,rotation=0){
-  const group=new THREE.Group();
-  group.position.set(x,.12,z);group.rotation.y=rotation;world.add(group);
-  const pole=new THREE.Mesh(new THREE.CylinderGeometry(.09,.12,2.5,8),materials.pole);
-  pole.position.y=1.25;pole.castShadow=true;group.add(pole);
-  const arm=slab(.12,.12,.8,materials.pole,0,2.35,-.28,group);
-  const housing=slab(.48,.95,.38,materials.pole,0,2.05,-.68,group);
-  for(const [i,m] of [[0,materials.red],[1,materials.amber],[2,materials.green]]){
-    const lens=new THREE.Mesh(new THREE.SphereGeometry(.115,12,10),m);
-    lens.position.set(0,2.34-i*.29,-.89);group.add(lens);
-  }
-  slab(.75,.12,.75,materials.pole,0,.13,0,group);
-}
-for(const [x,z] of [[-40,-30],[-20,-10],[0,10],[20,30],[40,-10],[-60,30],[60,10]]){
-  trafficLight(x+4.8,z+4.8,Math.PI/4);
-  trafficLight(x-4.8,z-4.8,-Math.PI/4);
-}
-
-// Turn the current road-and-canal layout into a reusable city template.
-const cityTemplate=new THREE.Group();
-for(const child of [...world.children]){
-  world.remove(child);
-  if(child.isSprite) continue; // replace the prototype labels with one label per city
-  cityTemplate.add(child);
-}
-const regionalMap=new THREE.Group();
-world.add(regionalMap);
-const cityAnchors=[];
-const columns=6, rows=6;
-let regionId=1;
-for(let row=0;row<rows && regionId<=33;row++){
-  for(let col=0;col<columns && regionId<=33;col++){
-    // Slightly irregular spacing makes the region feel like a real map, not a perfect grid.
-    const x=col*310+(row%2?34:0)+(col%3)*13;
-    const z=row*270+(col%2?23:0)+(row%3)*11;
-    const city=cityTemplate.clone(true);
-    city.position.set(x,0,z);
-    regionalMap.add(city);
-    cityAnchors.push({id:regionId,x,z});
-    regionId++;
-  }
-}
-function cityNameTag(name,x,z){
-  const canvas=document.createElement('canvas'); canvas.width=512; canvas.height=128;
-  const ctx=canvas.getContext('2d');
-  ctx.fillStyle='rgba(15,37,38,.92)'; ctx.beginPath(); ctx.roundRect(8,8,496,112,22); ctx.fill();
-  ctx.strokeStyle='#d4ff63'; ctx.lineWidth=4; ctx.stroke();
-  ctx.font='700 42px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#f2f7e9';
-  ctx.fillText(name,256,64);
-  const texture=new THREE.CanvasTexture(canvas); texture.colorSpace=THREE.SRGBColorSpace;
-  const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthWrite:false}));
-  sprite.position.set(x,3.4,z); sprite.scale.set(22,5.5,1); regionalMap.add(sprite);
-}
-for(const city of cityAnchors) cityNameTag('ГОРОД '+String(city.id).padStart(2,'0'),city.x,city.z);
-
-// Connect neighboring city road networks with long intercity highways.
-const highwayMat=materials.road, shoulderMat=materials.roadEdge;
-function intercityRoad(x1,z1,x2,z2){
-  const dx=x2-x1,dz=z2-z1,len=Math.hypot(dx,dz),angle=Math.atan2(dx,dz);
-  const road=slab(8,.18,len,highwayMat,(x1+x2)/2,.02,(z1+z2)/2,regionalMap);
-  road.rotation.y=angle;
-  for(const side of [-1,1]){
-    const edge=slab(.32,.14,len,shoulderMat,(x1+x2)/2,.08,(z1+z2)/2,regionalMap);
-    edge.rotation.y=angle;
-    edge.position.x+=Math.cos(angle)*side*4.15;
-    edge.position.z-=Math.sin(angle)*side*4.15;
-  }
-  // Broken centre line, aligned to the route.
-  for(let d=-len/2+5;d<len/2-3;d+=10){
-    const mark=slab(.22,.08,3.4,materials.white,(x1+x2)/2,.13,(z1+z2)/2,regionalMap);
-    mark.rotation.y=angle;
-    mark.position.x+=Math.sin(angle)*d;
-    mark.position.z+=Math.cos(angle)*d;
-  }
-}
-for(let i=0;i<cityAnchors.length;i++){
-  const a=cityAnchors[i], col=i%columns, row=Math.floor(i/columns);
-  if(col<columns-1 && i+1<cityAnchors.length){
-    const b=cityAnchors[i+1];
-    intercityRoad(a.x+78,a.z,b.x-78,b.z);
-  }
-  if(row<rows-1 && i+columns<cityAnchors.length){
-    const b=cityAnchors[i+columns];
-    intercityRoad(a.x,a.z+64,b.x,b.z-64);
-  }
-}
-// A few low islands and pedestrian paths to give the empty map scale, without any buildings.
-for(const [x,z] of [[-50,0],[50,0],[-40,40],[40,-40]]){
-  flat(6.2,2.0,materials.field,x,z,.12);
-  flat(1.1,1.1,materials.sidewalk,x,z,.2);
-}
-
-
-// Wider intercity distances and realistic sandy river trenches in every gap.
-// Each canal sits below ground level, with sloped-looking sandy banks and blue water.
-// The road crossing is covered by a raised bridge deck so roads remain connected.
-const gapRiverBank = mat('#bda77d');
-const gapRiverBed = mat('#806f55');
-const gapRiverWater = mat('#36a8bd', .2, { metalness: .12 });
-function gapRiver(cx, cz, horizontal, span) {
-  const length = Math.max(46, span);
-  if (horizontal) {
-    // River flows north-south between left/right cities.
-    flat(22, length, gapRiverBank, cx, cz, -.12, regionalMap);
-    flat(15, length, gapRiverBed, cx, cz, -.28, regionalMap);
-    flat(9, length, gapRiverWater, cx, cz, -.19, regionalMap);
-    // Bridge follows the east-west intercity highway over the canal.
-    slab(15, .48, 11, materials.bridge, cx, .25, cz, regionalMap, true);
-    for (const side of [-1, 1]) slab(15, .2, .22, materials.bridgeSide, cx, .56, cz + side * 5.1, regionalMap);
+// Intercity roads, with wide gaps and recessed water channels between neighboring cities.
+function roadBetween(a, b) {
+  const dx = b.x - a.x, dz = b.z - a.z;
+  const len = Math.hypot(dx, dz);
+  const angle = Math.atan2(dx, dz);
+  const midX = (a.x + b.x) / 2, midZ = (a.z + b.z) / 2;
+  addBox(9, 0.18, len - 115, M.road, midX, 0.015, midZ, angle);
+  addBox(0.28, 0.13, len - 115, M.edge, midX - Math.cos(angle) * 4.7, 0.09, midZ + Math.sin(angle) * 4.7, angle);
+  addBox(0.28, 0.13, len - 115, M.edge, midX + Math.cos(angle) * 4.7, 0.09, midZ - Math.sin(angle) * 4.7, angle);
+  // Sandy trench, dark bed and water are below ground level.
+  if (Math.abs(dx) > Math.abs(dz)) {
+    addFlat(24, 72, M.bank, midX, midZ, -0.16);
+    addFlat(17, 72, M.bed, midX, midZ, -0.30);
+    addFlat(10, 72, M.water, midX, midZ, -0.22);
+    addBox(16, 0.48, 12, M.bridge, midX, 0.25, midZ, 0);
+    addBox(16, 0.18, 0.22, M.rail, midX, 0.54, midZ - 5.6);
+    addBox(16, 0.18, 0.22, M.rail, midX, 0.54, midZ + 5.6);
   } else {
-    // River flows east-west between upper/lower rows of cities.
-    flat(length, 22, gapRiverBank, cx, cz, -.12, regionalMap);
-    flat(length, 15, gapRiverBed, cx, cz, -.28, regionalMap);
-    flat(length, 9, gapRiverWater, cx, cz, -.19, regionalMap);
-    // Bridge follows the north-south intercity highway over the canal.
-    slab(11, .48, 15, materials.bridge, cx, .25, cz, regionalMap, true);
-    for (const side of [-1, 1]) slab(5.1, .2, 15, materials.bridgeSide, cx + side * 5.1, .56, cz, regionalMap);
+    addFlat(72, 24, M.bank, midX, midZ, -0.16);
+    addFlat(72, 17, M.bed, midX, midZ, -0.30);
+    addFlat(72, 10, M.water, midX, midZ, -0.22);
+    addBox(12, 0.48, 16, M.bridge, midX, 0.25, midZ, 0);
+    addBox(0.22, 0.18, 16, M.rail, midX - 5.6, 0.54, midZ);
+    addBox(0.22, 0.18, 16, M.rail, midX + 5.6, 0.54, midZ);
   }
 }
-for (let i = 0; i < cityAnchors.length; i++) {
-  const a = cityAnchors[i], col = i % columns, row = Math.floor(i / columns);
-  if (col < columns - 1 && i + 1 < cityAnchors.length) {
-    const b = cityAnchors[i + 1];
-    gapRiver((a.x + b.x) / 2, (a.z + b.z) / 2, false, Math.abs(b.x-a.x) * .72);
-  }
-  if (row < rows - 1 && i + columns < cityAnchors.length) {
-    const b = cityAnchors[i + columns];
-    gapRiver((a.x + b.x) / 2, (a.z + b.z) / 2, true, Math.abs(b.z-a.z) * .72);
-  }
+for (const city of cities) {
+  const right = cities.find(c => c.row === city.row && c.col === city.col + 1);
+  const below = cities.find(c => c.row === city.row + 1 && c.col === city.col);
+  if (right) roadBetween(city, right);
+  if (below) roadBetween(city, below);
 }
 
-
-// PERFORMANCE PASS: instance repeated box meshes across the entire map.
- // Thousands of separate road/sidewalk/bridge boxes become a small number of draw calls.
-regionalMap.updateMatrixWorld(true);
-const boxBatches = new Map();
-const boxMeshes = [];
-regionalMap.traverse((obj) => {
-  if (!obj.isMesh || !obj.geometry?.parameters || obj.geometry.type !== 'BoxGeometry') return;
-  const p = obj.geometry.parameters;
-  const materialsForMesh = Array.isArray(obj.material) ? obj.material : [obj.material];
-  if (materialsForMesh.length !== 1) return;
-  const material = materialsForMesh[0];
-  const key = [p.width, p.height, p.depth, material.uuid].join('|');
-  if (!boxBatches.has(key)) boxBatches.set(key, { geometry: obj.geometry, material, matrices: [] });
-  const relative = new THREE.Matrix4().copy(regionalMap.matrixWorld).invert().multiply(obj.matrixWorld);
-  boxBatches.get(key).matrices.push(relative);
-  boxMeshes.push(obj);
-});
-for (const mesh of boxMeshes) mesh.removeFromParent();
-for (const batch of boxBatches.values()) {
-  const instances = new THREE.InstancedMesh(batch.geometry, batch.material, batch.matrices.length);
+// Render all the map cuboids as instanced batches. This keeps draw calls low even with 33 cities.
+for (const batch of batches.values()) {
+  const geometry = new THREE.BoxGeometry(batch.w, batch.h, batch.d);
+  const instances = new THREE.InstancedMesh(geometry, batch.mat, batch.transforms.length);
   instances.instanceMatrix.setUsage(THREE.StaticDrawUsage);
-  instances.castShadow = false;
-  instances.receiveShadow = false;
-  batch.matrices.forEach((matrix, i) => instances.setMatrixAt(i, matrix));
+  batch.transforms.forEach((t, i) => {
+    dummy.position.set(t.x, t.y, t.z);
+    dummy.rotation.set(0, t.rotY, 0);
+    dummy.updateMatrix();
+    instances.setMatrixAt(i, dummy.matrix);
+  });
   instances.instanceMatrix.needsUpdate = true;
-  regionalMap.add(instances);
+  instances.frustumCulled = true;
+  map.add(instances);
 }
-renderer.info.autoReset = true;
 
-// Continuous sea plane underneath the entire 33-city region.
-// City terrain and roads stay above sea level; water is visible through the gaps
-// and around the outer coastline, without covering the playable map.
-const seaMaterial = new THREE.MeshStandardMaterial({
-  color: '#287f91',
-  roughness: 0.28,
-  metalness: 0.12,
-  transparent: false
-});
-const seaGeometry = new THREE.PlaneGeometry(2300, 2050, 1, 1);
-const sea = new THREE.Mesh(seaGeometry, seaMaterial);
+// Labels are lightweight sprites, one per city.
+function cityLabel(city) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'rgba(15,37,38,.9)';
+  ctx.beginPath(); ctx.roundRect(4, 4, 248, 56, 12); ctx.fill();
+  ctx.strokeStyle = '#d4ff63'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.font = 'bold 23px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#f2f7e9';
+  ctx.fillText('ГОРОД ' + String(city.id).padStart(2, '0'), 128, 32);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthWrite: false }));
+  sprite.position.set(city.x, 2.8, city.z);
+  sprite.scale.set(24, 6, 1);
+  map.add(sprite);
+}
+
+// Sea is a single flat plane below the whole region.
+const sea = new THREE.Mesh(new THREE.PlaneGeometry(2200, 1900), material('#287f91', true));
 sea.rotation.x = -Math.PI / 2;
-sea.position.set(775, -1.05, 675);
-sea.receiveShadow = true;
-world.add(sea);
+sea.position.set(780, -0.72, 680);
+scene.add(sea);
+cities.forEach(cityLabel);
 
-// Gentle layered highlights give the sea surface depth without heavy effects.
-const seaSheenMaterial = new THREE.MeshBasicMaterial({
-  color: '#55b4bf',
-  transparent: true,
-  opacity: 0.10,
-  depthWrite: false
-});
-const seaSheen = new THREE.Mesh(new THREE.PlaneGeometry(2260, 2010), seaSheenMaterial);
-seaSheen.rotation.x = -Math.PI / 2;
-seaSheen.position.set(775, -1.025, 675);
-world.add(seaSheen);
-
-const target=new THREE.Vector3(0,0,0);
-let yaw=.48,pitchAngle=.9,radius=210;
-let dragging=false,lastX=0,lastY=0;
-function updateCamera(){
-  pitchAngle=THREE.MathUtils.clamp(pitchAngle,.38,1.25);
-  radius=THREE.MathUtils.clamp(radius,72,1800);
-  camera.position.set(target.x+radius*Math.sin(yaw)*Math.cos(pitchAngle),radius*Math.sin(pitchAngle),target.z+radius*Math.cos(yaw)*Math.cos(pitchAngle));
+const target = new THREE.Vector3(0, 0, 0);
+let yaw = 0.55, pitch = 0.82, radius = 220;
+let dragging = false, lastX = 0, lastY = 0;
+function updateCamera() {
+  pitch = THREE.MathUtils.clamp(pitch, 0.35, 1.25);
+  radius = THREE.MathUtils.clamp(radius, 85, 1800);
+  camera.position.set(
+    target.x + radius * Math.sin(yaw) * Math.cos(pitch),
+    radius * Math.sin(pitch),
+    target.z + radius * Math.cos(yaw) * Math.cos(pitch)
+  );
   camera.lookAt(target);
 }
 updateCamera();
-renderer.domElement.style.touchAction='none';
-renderer.domElement.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;renderer.domElement.setPointerCapture(e.pointerId);});
-renderer.domElement.addEventListener('pointermove',e=>{if(!dragging)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;yaw-=dx*.005;pitchAngle+=dy*.0035;lastX=e.clientX;lastY=e.clientY;updateCamera();});
-renderer.domElement.addEventListener('pointerup',()=>dragging=false);
-renderer.domElement.addEventListener('pointercancel',()=>dragging=false);
-renderer.domElement.addEventListener('wheel',e=>{radius+=e.deltaY*.045;updateCamera();},{passive:true});
-document.querySelector('#zoom-in')?.addEventListener('click',()=>{radius-=8;updateCamera();});
-document.querySelector('#zoom-out')?.addEventListener('click',()=>{radius+=8;updateCamera();});
-document.querySelector('#reset-view')?.addEventListener('click',()=>{yaw=.48;pitchAngle=.9;radius=210;target.set(0,0,0);updateCamera();});
-function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.0));}
-addEventListener('resize',resize);
-function animate(){requestAnimationFrame(animate);renderer.render(scene,camera);}
-animate();
+const canvas = renderer.domElement;
+canvas.style.touchAction = 'none';
+canvas.addEventListener('pointerdown', e => {
+  dragging = true; lastX = e.clientX; lastY = e.clientY;
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  yaw -= (e.clientX - lastX) * 0.005;
+  pitch += (e.clientY - lastY) * 0.0035;
+  lastX = e.clientX; lastY = e.clientY;
+  updateCamera();
+});
+canvas.addEventListener('pointerup', () => dragging = false);
+canvas.addEventListener('pointercancel', () => dragging = false);
+canvas.addEventListener('wheel', e => {
+  radius += e.deltaY * 0.045; updateCamera();
+}, { passive: true });
+document.querySelector('#zoom-in')?.addEventListener('click', () => { radius -= 12; updateCamera(); });
+document.querySelector('#zoom-out')?.addEventListener('click', () => { radius += 12; updateCamera(); });
+document.querySelector('#reset-view')?.addEventListener('click', () => {
+  yaw = 0.55; pitch = 0.82; radius = 220; target.set(0, 0, 0); updateCamera();
+});
+function resize() {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 0.7));
+}
+addEventListener('resize', resize);
+
+// Cap rendering to 30 FPS and pause completely when the tab is hidden.
+let lastFrame = 0, frameRequested = false;
+function animate(now) {
+  frameRequested = false;
+  if (document.hidden) return;
+  if (now - lastFrame >= 33) {
+    renderer.render(scene, camera);
+    lastFrame = now;
+  }
+  frameRequested = true;
+  requestAnimationFrame(animate);
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && !frameRequested) requestAnimationFrame(animate);
+});
+requestAnimationFrame(animate);
