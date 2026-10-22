@@ -95,6 +95,5 @@ function moveVan(dx,dz){
 }
 moveButtons.forEach(button=>{
   const move=()=>{const dir=button.dataset.move;const step=1.0;moveVan(dir==='left'?-step:dir==='right'?step:0,dir==='up'?-step:dir==='down'?step:0);};
-  button.addEventListener('click',move);
   button.addEventListener('pointerdown',e=>{e.preventDefault();move();});
 });
