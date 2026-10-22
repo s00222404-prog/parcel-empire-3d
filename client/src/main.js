@@ -205,14 +205,67 @@ function resize() {
 }
 addEventListener('resize', resize);
 
+// Two lightweight processing systems (not extra game engines):
+// 1) Adaptive quality controller lowers internal resolution when frame time rises.
+// 2) Visibility / camera-distance culling skips city labels that cannot contribute to the view.
+const perf = {
+  lastSample: performance.now(),
+  frames: 0,
+  lastFpsUpdate: performance.now(),
+  fps: 30,
+  pixelRatio: Math.min(devicePixelRatio || 1, 0.7),
+  slowSamples: 0,
+  fastSamples: 0
+};
+const labelSprites = [];
+map.traverse(obj => { if (obj.isSprite) labelSprites.push(obj); });
+function updateLabelVisibility() {
+  const maxLabelDistance = Math.max(300, radius * 1.25);
+  for (const sprite of labelSprites) {
+    sprite.visible = camera.position.distanceTo(sprite.position) < maxLabelDistance;
+  }
+}
+function adaptQuality(now) {
+  const elapsed = now - perf.lastSample;
+  if (elapsed < 1000) return;
+  perf.fps = Math.round((perf.frames * 1000) / elapsed);
+  perf.frames = 0;
+  perf.lastSample = now;
+  // Adjust resolution gradually to avoid oscillation and preserve battery.
+  if (perf.fps < 22) {
+    perf.slowSamples++;
+    perf.fastSamples = 0;
+  } else if (perf.fps > 29) {
+    perf.fastSamples++;
+    perf.slowSamples = 0;
+  } else {
+    perf.slowSamples = Math.max(0, perf.slowSamples - 1);
+    perf.fastSamples = 0;
+  }
+  if (perf.slowSamples >= 2 && perf.pixelRatio > 0.45) {
+    perf.pixelRatio = Math.max(0.45, perf.pixelRatio - 0.1);
+    renderer.setPixelRatio(perf.pixelRatio);
+    renderer.setSize(innerWidth, innerHeight);
+    perf.slowSamples = 0;
+  } else if (perf.fastSamples >= 8 && perf.pixelRatio < Math.min(devicePixelRatio || 1, 0.7)) {
+    perf.pixelRatio = Math.min(Math.min(devicePixelRatio || 1, 0.7), perf.pixelRatio + 0.05);
+    renderer.setPixelRatio(perf.pixelRatio);
+    renderer.setSize(innerWidth, innerHeight);
+    perf.fastSamples = 0;
+  }
+}
+
 // Cap rendering to 30 FPS and pause completely when the tab is hidden.
 let lastFrame = 0, frameRequested = false;
 function animate(now) {
   frameRequested = false;
   if (document.hidden) return;
   if (now - lastFrame >= 33) {
+    updateLabelVisibility();
     renderer.render(scene, camera);
     lastFrame = now;
+    perf.frames++;
+    adaptQuality(now);
   }
   frameRequested = true;
   requestAnimationFrame(animate);
