@@ -166,8 +166,8 @@ let regionId=1;
 for(let row=0;row<rows && regionId<=33;row++){
   for(let col=0;col<columns && regionId<=33;col++){
     // Slightly irregular spacing makes the region feel like a real map, not a perfect grid.
-    const x=col*224+(row%2?26:0)+(col%3)*9;
-    const z=row*190+(col%2?17:0)+(row%3)*7;
+    const x=col*310+(row%2?34:0)+(col%3)*13;
+    const z=row*270+(col%2?23:0)+(row%3)*11;
     const city=cityTemplate.clone(true);
     city.position.set(x,0,z);
     regionalMap.add(city);
@@ -225,8 +225,47 @@ for(const [x,z] of [[-50,0],[50,0],[-40,40],[40,-40]]){
   flat(1.1,1.1,materials.sidewalk,x,z,.2);
 }
 
+
+// Wider intercity distances and realistic sandy river trenches in every gap.
+// Each canal sits below ground level, with sloped-looking sandy banks and blue water.
+// The road crossing is covered by a raised bridge deck so roads remain connected.
+const gapRiverBank = mat('#bda77d');
+const gapRiverBed = mat('#806f55');
+const gapRiverWater = mat('#36a8bd', .2, { metalness: .12 });
+function gapRiver(cx, cz, horizontal, span) {
+  const length = Math.max(46, span);
+  if (horizontal) {
+    // River flows north-south between left/right cities.
+    flat(22, length, gapRiverBank, cx, cz, -.12, regionalMap);
+    flat(15, length, gapRiverBed, cx, cz, -.28, regionalMap);
+    flat(9, length, gapRiverWater, cx, cz, -.19, regionalMap);
+    // Bridge follows the east-west intercity highway over the canal.
+    slab(15, .48, 11, materials.bridge, cx, .25, cz, regionalMap, true);
+    for (const side of [-1, 1]) slab(15, .2, .22, materials.bridgeSide, cx, .56, cz + side * 5.1, regionalMap);
+  } else {
+    // River flows east-west between upper/lower rows of cities.
+    flat(length, 22, gapRiverBank, cx, cz, -.12, regionalMap);
+    flat(length, 15, gapRiverBed, cx, cz, -.28, regionalMap);
+    flat(length, 9, gapRiverWater, cx, cz, -.19, regionalMap);
+    // Bridge follows the north-south intercity highway over the canal.
+    slab(11, .48, 15, materials.bridge, cx, .25, cz, regionalMap, true);
+    for (const side of [-1, 1]) slab(5.1, .2, 15, materials.bridgeSide, cx + side * 5.1, .56, cz, regionalMap);
+  }
+}
+for (let i = 0; i < cityAnchors.length; i++) {
+  const a = cityAnchors[i], col = i % columns, row = Math.floor(i / columns);
+  if (col < columns - 1 && i + 1 < cityAnchors.length) {
+    const b = cityAnchors[i + 1];
+    gapRiver((a.x + b.x) / 2, (a.z + b.z) / 2, false, Math.abs(b.x-a.x) * .72);
+  }
+  if (row < rows - 1 && i + columns < cityAnchors.length) {
+    const b = cityAnchors[i + columns];
+    gapRiver((a.x + b.x) / 2, (a.z + b.z) / 2, true, Math.abs(b.z-a.z) * .72);
+  }
+}
+
 const target=new THREE.Vector3(0,0,0);
-let yaw=.48,pitchAngle=.9,radius=155;
+let yaw=.48,pitchAngle=.9,radius=210;
 let dragging=false,lastX=0,lastY=0;
 function updateCamera(){
   pitchAngle=THREE.MathUtils.clamp(pitchAngle,.38,1.25);
@@ -243,7 +282,7 @@ renderer.domElement.addEventListener('pointercancel',()=>dragging=false);
 renderer.domElement.addEventListener('wheel',e=>{radius+=e.deltaY*.045;updateCamera();},{passive:true});
 document.querySelector('#zoom-in')?.addEventListener('click',()=>{radius-=8;updateCamera();});
 document.querySelector('#zoom-out')?.addEventListener('click',()=>{radius+=8;updateCamera();});
-document.querySelector('#reset-view')?.addEventListener('click',()=>{yaw=.48;pitchAngle=.9;radius=155;target.set(0,0,0);updateCamera();});
+document.querySelector('#reset-view')?.addEventListener('click',()=>{yaw=.48;pitchAngle=.9;radius=210;target.set(0,0,0);updateCamera();});
 function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));}
 addEventListener('resize',resize);
 function animate(){requestAnimationFrame(animate);renderer.render(scene,camera);}
