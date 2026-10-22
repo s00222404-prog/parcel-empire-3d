@@ -4,12 +4,12 @@ import * as THREE from 'three';
 const host = document.querySelector('#map');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#193638');
-scene.fog = new THREE.Fog('#193638', 42, 115);
+scene.fog = new THREE.Fog('#193638', 75, 150);
 
-const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 180);
+const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 220);
 camera.position.set(25, 29, 34);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.7));
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.35));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -19,10 +19,10 @@ renderer.toneMappingExposure = 1.12;
 host.appendChild(renderer.domElement);
 
 scene.add(new THREE.HemisphereLight('#d7eee4', '#405b56', 2.0));
-const sun = new THREE.DirectionalLight('#fff1d1', 3.1);
+const sun = new THREE.DirectionalLight('#fff4dc', 2.4);
 sun.position.set(-22, 38, 18);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(1024, 1024);
 sun.shadow.camera.left = -48; sun.shadow.camera.right = 48;
 sun.shadow.camera.top = 48; sun.shadow.camera.bottom = -48;
 sun.shadow.bias = -0.0002;
@@ -80,14 +80,17 @@ function makeBuilding(x,z,w,d,h,seed){
   if(seed%3!==0) box(w*.28,.55,d*.3,mats.glassC,x-w*.12,h+.48,z+d*.08);
   // Recessed-looking window bands, kept as simple geometry for mobile performance.
   const windowMat=new THREE.MeshStandardMaterial({color:seed%2?'#d9dfb5':'#d1e3d0',emissive:'#53665a',emissiveIntensity:.14,roughness:.8});
-  const rows=Math.min(8,Math.floor(h/1.65));
-  const cols=Math.min(5,Math.floor(w/1.55));
+  const rows=Math.min(7,Math.max(2,Math.floor(h/2.0)));
+  const cols=Math.min(4,Math.max(2,Math.floor(w/1.0)));
   for(let row=0;row<rows;row++){
     for(let col=0;col<cols;col++){
-      const wx=x-w/2+(col+.5)*w/cols, wy=1.05+row*(h-1.3)/Math.max(rows,1), wz=z+d/2+.012;
-      const pane=new THREE.Mesh(new THREE.BoxGeometry(Math.min(.42,w/cols*.38),.48,.035),windowMat);
+      const wx=x-w/2+(col+.5)*w/cols, wy=.12+(row+.7)*(h-.9)/rows, wz=z+d/2+.025;
+      const pane=new THREE.Mesh(new THREE.BoxGeometry(Math.min(.34,w/cols*.48),.52,.045),windowMat);
       pane.position.set(wx,wy,wz);city.add(pane);
-      const pane2=pane.clone();pane2.position.z=z-d/2-.012;city.add(pane2);
+      const pane2=pane.clone();pane2.position.z=z-d/2-.025;city.add(pane2);
+      const sidePane=new THREE.Mesh(new THREE.BoxGeometry(.045,.52,Math.min(.34,d/cols*.48)),windowMat);
+      sidePane.position.set(x+w/2+.025,wy,z-d/2+(col+.5)*d/cols);city.add(sidePane);
+      const sidePane2=sidePane.clone();sidePane2.position.x=x-w/2-.025;city.add(sidePane2);
     }
   }
   return base;
@@ -134,7 +137,7 @@ box(.45,.3,74,edgeMat,-36.8,-.08,0);
 box(.45,.3,74,edgeMat,36.8,-.08,0);
 
 const target=new THREE.Vector3(0,0,0);
-let yaw=.72, pitchAngle=.91, radius=63;
+let yaw=.72, pitchAngle=1.02, radius=68;
 let dragging=false, lastX=0,lastY=0, moved=false;
 function updateCamera(){
   pitchAngle=THREE.MathUtils.clamp(pitchAngle,.28,1.18);
@@ -150,7 +153,7 @@ renderer.domElement.addEventListener('pointercancel',()=>{dragging=false;});
 renderer.domElement.addEventListener('wheel',e=>{radius+=e.deltaY*.035;updateCamera();},{passive:true});
 document.querySelector('#zoom-in').addEventListener('click',()=>{radius-=5;updateCamera();});
 document.querySelector('#zoom-out').addEventListener('click',()=>{radius+=5;updateCamera();});
-document.querySelector('#reset-view').addEventListener('click',()=>{yaw=.72;pitchAngle=.91;radius=63;target.set(0,0,0);updateCamera();});
+document.querySelector('#reset-view').addEventListener('click',()=>{yaw=.72;pitchAngle=1.02;radius=68;target.set(0,0,0);updateCamera();});
 function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));}
 addEventListener('resize',resize);
 function animate(){requestAnimationFrame(animate);renderer.render(scene,camera);}
