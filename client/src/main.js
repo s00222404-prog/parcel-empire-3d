@@ -125,15 +125,12 @@ function cityLabel(name,x,z){
   const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthWrite:false}));
   sprite.position.set(x,1.8,z); sprite.scale.set(10,2.5,1); world.add(sprite);
 }
-const cityPositions=[];
-for(let row=0;row<3;row++) for(let col=0;col<11;col++){
-  const x=-70+col*13.5, z=-48+row*48;
-  if(x>30 && x<62) continue;
-  cityPositions.push([x,z]);
-}
-for(let i=0;i<33;i++){
-  const p=cityPositions[i];
-  if(p) cityLabel('ГОРОД '+String(i+1).padStart(2,'0'),p[0],p[1]);
+const cityX=[-70,-56,-42,-28,-14,0,64,69,74,79,84];
+const cityZ=[-48,0,48];
+let cityIndex=1;
+for(const z of cityZ) for(const x of cityX){
+  cityLabel('ГОРОД '+String(cityIndex).padStart(2,'0'),x,z);
+  cityIndex++;
 }
 // Traffic lights on corners of selected intersections; each has red, amber and green lenses.
 function trafficLight(x,z,rotation=0){
