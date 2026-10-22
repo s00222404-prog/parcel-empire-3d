@@ -10,7 +10,8 @@ const deliverBtn = document.querySelector('#deliver');
 const statusEl = document.querySelector('#session-status');
 const tg = window.Telegram?.WebApp;
 const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-let balance = 1000, deliveries = 0, level = 1, busy = false, jobActive = false;\nconst moveButtons = document.querySelectorAll('[data-move]');
+let balance = 1000, deliveries = 0, level = 1, busy = false, jobActive = false;
+const moveButtons = document.querySelectorAll('[data-move]');
 
 if (tg) {
   tg.ready(); tg.expand();
