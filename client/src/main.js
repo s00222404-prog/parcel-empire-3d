@@ -264,6 +264,35 @@ for (let i = 0; i < cityAnchors.length; i++) {
   }
 }
 
+
+// Continuous sea plane underneath the entire 33-city region.
+// City terrain and roads stay above sea level; water is visible through the gaps
+// and around the outer coastline, without covering the playable map.
+const seaMaterial = new THREE.MeshStandardMaterial({
+  color: '#287f91',
+  roughness: 0.28,
+  metalness: 0.12,
+  transparent: false
+});
+const seaGeometry = new THREE.PlaneGeometry(2300, 2050, 1, 1);
+const sea = new THREE.Mesh(seaGeometry, seaMaterial);
+sea.rotation.x = -Math.PI / 2;
+sea.position.set(775, -1.05, 675);
+sea.receiveShadow = true;
+world.add(sea);
+
+// Gentle layered highlights give the sea surface depth without heavy effects.
+const seaSheenMaterial = new THREE.MeshBasicMaterial({
+  color: '#55b4bf',
+  transparent: true,
+  opacity: 0.10,
+  depthWrite: false
+});
+const seaSheen = new THREE.Mesh(new THREE.PlaneGeometry(2260, 2010), seaSheenMaterial);
+seaSheen.rotation.x = -Math.PI / 2;
+seaSheen.position.set(775, -1.025, 675);
+world.add(seaSheen);
+
 const target=new THREE.Vector3(0,0,0);
 let yaw=.48,pitchAngle=.9,radius=210;
 let dragging=false,lastX=0,lastY=0;
