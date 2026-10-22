@@ -43,7 +43,16 @@ const M = {
   bridge: material('#c8c9bc', true),
   rail: material('#788d8c', true),
   pole: material('#303e42', true),
-  green: material('#7bcf92', true)
+  green: material('#7bcf92', true),
+  lane: material('#f6e9a7', true),
+  carRed: material('#bd4e43', true),
+  carBlue: material('#477e9d', true),
+  carWhite: material('#e5e4d9', true),
+  carBlack: material('#30383b', true),
+  glass: material('#86bac4', true),
+  lightRed: material('#f04d42', true),
+  lightAmber: material('#f3bd43', true),
+  lightGreen: material('#4ed17c', true)
 };
 
 // Store repeated cuboids as transform data, then create a single InstancedMesh per type.
@@ -75,7 +84,47 @@ for (let row = 0; row < rows && cities.length < 33; row++) {
       addFlat(150, 0.3, M.edge, x, z + offset + 3.8, 0.07);
       addFlat(0.3, 150, M.edge, x + offset - 3.8, z, 0.07);
       addFlat(0.3, 150, M.edge, x + offset + 3.8, z, 0.07);
+
+      // Broken center-line markings, kept as instanced flat strips.
+      for (let mark = -2; mark <= 2; mark++) {
+        const along = mark * 24 + 12;
+        if (Math.abs(i) !== 2) addFlat(7, 0.42, M.lane, x + along, z + offset, 0.085);
+        if (Math.abs(i) !== 2) addFlat(0.42, 7, M.lane, x + offset, z + along, 0.085);
+      }
     }
+
+    // Four compact pedestrian crossings at the main intersections.
+    for (const cross of [-1, 1]) {
+      const cx = x + cross * 25, cz = z + cross * 25;
+      for (let stripe = -3; stripe <= 3; stripe++) {
+        addFlat(1.1, 5.4, M.white, cx + stripe * 1.35, cz - 5.2, 0.09);
+        addFlat(5.4, 1.1, M.white, cx - 5.2, cz + stripe * 1.35, 0.09);
+      }
+    }
+
+    // A few parked cars per city; all parts are batched, not separate draw calls.
+    const carSpots = [
+      [-39, -39, M.carRed, 0], [-39, -16, M.carWhite, 0],
+      [39, 16, M.carBlue, Math.PI / 2], [39, 39, M.carBlack, Math.PI / 2],
+      [-14, 39, M.carWhite, Math.PI / 2], [14, -39, M.carRed, 0]
+    ];
+    for (const [ox, oz, carMat, rot] of carSpots) {
+      addBox(4.2, 1.45, 7.2, carMat, x + ox, 0.88, z + oz, rot);
+      addBox(3.1, 1.05, 3.3, M.glass, x + ox, 1.95, z + oz, rot);
+      addBox(0.35, 0.28, 0.5, M.white, x + ox, 0.55, z + oz - 3.1, rot);
+      addBox(0.35, 0.28, 0.5, M.lightRed, x + ox, 0.55, z + oz + 3.1, rot);
+    }
+
+    // Traffic lights at two central junctions.
+    for (const side of [-1, 1]) {
+      const tx = x + side * 29, tz = z - 29;
+      addBox(0.28, 5.2, 0.28, M.pole, tx, 2.6, tz);
+      addBox(0.85, 2.2, 0.7, M.carBlack, tx, 4.8, tz);
+      addBox(0.48, 0.48, 0.18, M.lightRed, tx, 5.45, tz + 0.4);
+      addBox(0.48, 0.48, 0.18, M.lightAmber, tx, 4.85, tz + 0.4);
+      addBox(0.48, 0.48, 0.18, M.lightGreen, tx, 4.25, tz + 0.4);
+    }
+
     // A small green square park in every city.
     addFlat(18, 18, M.green, x + 42, z - 42, 0.02);
     for (let t = -1; t <= 1; t++) {
