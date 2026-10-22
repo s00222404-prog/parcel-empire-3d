@@ -9,7 +9,7 @@ const port = Number(process.env.PORT || 3000);
 const botToken = process.env.BOT_TOKEN;
 const pool = process.env.DATABASE_URL ? new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false
+  ssl: { rejectUnauthorized: false }
 }) : null;
 
 async function initializeDatabase() {
