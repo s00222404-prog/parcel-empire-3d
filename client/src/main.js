@@ -52,7 +52,18 @@ const M = {
   glass: material('#86bac4', true),
   lightRed: material('#f04d42', true),
   lightAmber: material('#f3bd43', true),
-  lightGreen: material('#4ed17c', true)
+  lightGreen: material('#4ed17c', true),
+  houseCream: material('#d9c8a8', true),
+  houseWhite: material('#e8e4d8', true),
+  houseBrick: material('#a96850', true),
+  houseSage: material('#a9b7a0', true),
+  roof: material('#55565a', true),
+  roofRed: material('#794b40', true),
+  windowFrame: material('#eee4ce', true),
+  windowGlass: material('#5d9eaf', true),
+  door: material('#654737', true),
+  doorLight: material('#c49a5b', true),
+  sill: material('#f1e8d6', true)
 };
 
 // Store repeated cuboids as transform data, then create a single InstancedMesh per type.
@@ -124,6 +135,56 @@ for (let row = 0; row < rows && cities.length < 33; row++) {
       addBox(0.48, 0.48, 0.18, M.lightAmber, tx, 4.85, tz + 0.4);
       addBox(0.48, 0.48, 0.18, M.lightGreen, tx, 4.25, tz + 0.4);
     }
+
+    // European-style low-rise homes with separate instanced facade details.
+    // Lots sit between the existing roads; shared materials keep draw calls low.
+    const houseLots = [
+      [-37.5, -37.5], [-12.5, -37.5], [12.5, -37.5], [37.5, -37.5],
+      [-37.5, -12.5], [-12.5, -12.5], [12.5, -12.5], [37.5, -12.5],
+      [-37.5, 12.5], [-12.5, 12.5], [12.5, 12.5], [37.5, 12.5]
+    ];
+    const housePalette = [M.houseCream, M.houseWhite, M.houseBrick, M.houseSage];
+    houseLots.forEach(([ox, oz], houseIndex) => {
+      const hx = x + ox, hz = z + oz;
+      const floors = 2 + ((city.id + houseIndex) % 3 === 0 ? 1 : 0);
+      const height = floors * 4.2;
+      const wall = housePalette[(city.id + houseIndex) % housePalette.length];
+
+      // Main wall volume and a slightly overhanging roof.
+      addBox(7.4, height, 7.4, wall, hx, height / 2 + 0.16, hz);
+      addBox(8.1, 0.65, 8.1, (houseIndex % 3 === 0 ? M.roofRed : M.roof),
+        hx, height + 0.48, hz);
+
+      // Front entrance: frame, door panel, handle and small canopy.
+      addBox(1.65, 2.45, 0.22, M.windowFrame, hx, 1.42, hz - 3.82);
+      addBox(1.25, 2.05, 0.12, M.door, hx, 1.32, hz - 3.98);
+      addBox(0.12, 0.12, 0.08, M.doorLight, hx + 0.38, 1.35, hz - 4.08);
+      addBox(2.1, 0.22, 1.1, M.roof, hx, 2.68, hz - 4.15);
+
+      // Front windows have cream frames, blue glass and projecting sills.
+      for (let floor = 0; floor < floors; floor++) {
+        const wy = 2.45 + floor * 4.05;
+        for (const wx of [-2.05, 2.05]) {
+          addBox(1.35, 1.55, 0.2, M.windowFrame, hx + wx, wy, hz - 3.82);
+          addBox(1.03, 1.22, 0.1, M.windowGlass, hx + wx, wy + 0.02, hz - 3.96);
+          addBox(1.45, 0.16, 0.35, M.sill, hx + wx, wy - 0.82, hz - 3.95);
+          addBox(0.1, 1.22, 0.08, M.windowFrame, hx + wx, wy + 0.02, hz - 4.03);
+          addBox(1.03, 0.1, 0.08, M.windowFrame, hx + wx, wy + 0.02, hz - 4.03);
+        }
+      }
+
+      // Two simple side windows add depth when the camera rotates.
+      for (let floor = 0; floor < floors; floor++) {
+        const wy = 2.45 + floor * 4.05;
+        for (const wz of [-1.8, 1.8]) {
+          addBox(0.2, 1.45, 1.25, M.windowFrame, hx + 3.82, wy, hz + wz);
+          addBox(0.1, 1.12, 0.98, M.windowGlass, hx + 3.96, wy, hz + wz);
+        }
+      }
+
+      // Small front step.
+      addBox(2.1, 0.2, 0.75, M.bridge, hx, 0.18, hz - 4.35);
+    });
 
     // A small green square park in every city.
     addFlat(18, 18, M.green, x + 42, z - 42, 0.02);
