@@ -74,7 +74,7 @@ for(let i=-2;i<=2;i++){
 // Distinct city blocks fill the spaces between roads.
 const palettes=[mats.glassA,mats.glassB,mats.glassC];
 function makeBuilding(x,z,w,d,h,seed){
-  const base=box(w,h,d,palettes[seed%palettes.length],x,h/2,z);
+  const base=box(w,h,d,palettes[seed%palettes.length],x,.12,z);
   // Flat dark rooftop and a small roof plant room make silhouettes readable from above.
   box(w+.08,.24,d+.08,mats.roof,x,h+.12,z);
   if(seed%3!==0) box(w*.28,.55,d*.3,mats.glassC,x-w*.12,h+.48,z+d*.08);
@@ -134,7 +134,7 @@ box(.45,.3,74,edgeMat,-36.8,-.08,0);
 box(.45,.3,74,edgeMat,36.8,-.08,0);
 
 const target=new THREE.Vector3(0,0,0);
-let yaw=.72, pitchAngle=.72, radius=57;
+let yaw=.72, pitchAngle=.91, radius=63;
 let dragging=false, lastX=0,lastY=0, moved=false;
 function updateCamera(){
   pitchAngle=THREE.MathUtils.clamp(pitchAngle,.28,1.18);
@@ -150,7 +150,7 @@ renderer.domElement.addEventListener('pointercancel',()=>{dragging=false;});
 renderer.domElement.addEventListener('wheel',e=>{radius+=e.deltaY*.035;updateCamera();},{passive:true});
 document.querySelector('#zoom-in').addEventListener('click',()=>{radius-=5;updateCamera();});
 document.querySelector('#zoom-out').addEventListener('click',()=>{radius+=5;updateCamera();});
-document.querySelector('#reset-view').addEventListener('click',()=>{yaw=.72;pitchAngle=.72;radius=57;target.set(0,0,0);updateCamera();});
+document.querySelector('#reset-view').addEventListener('click',()=>{yaw=.72;pitchAngle=.91;radius=63;target.set(0,0,0);updateCamera();});
 function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));}
 addEventListener('resize',resize);
 function animate(){requestAnimationFrame(animate);renderer.render(scene,camera);}
