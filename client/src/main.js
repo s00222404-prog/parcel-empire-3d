@@ -8,19 +8,20 @@ scene.fog = new THREE.Fog('#b7d4d0', 900, 2400);
 
 const camera = new THREE.PerspectiveCamera(43, innerWidth / innerHeight, 0.1, 5000);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+// Mobile-first rendering: fewer pixels means much less GPU work.
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.0));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.08;
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// Real-time shadows across thousands of map pieces are expensive on phones.
+renderer.shadowMap.enabled = false;
 host.appendChild(renderer.domElement);
 
 scene.add(new THREE.HemisphereLight('#f1fbff', '#718c80', 2.1));
 const sun = new THREE.DirectionalLight('#fff4d8', 2.5);
 sun.position.set(-45, 70, 25);
-sun.castShadow = true;
+sun.castShadow = false;
 sun.shadow.mapSize.set(1024, 1024);
 sun.shadow.camera.left = -80; sun.shadow.camera.right = 80;
 sun.shadow.camera.top = 80; sun.shadow.camera.bottom = -80;
@@ -265,6 +266,35 @@ for (let i = 0; i < cityAnchors.length; i++) {
 }
 
 
+// PERFORMANCE PASS: instance repeated box meshes across the entire map.
+ // Thousands of separate road/sidewalk/bridge boxes become a small number of draw calls.
+regionalMap.updateMatrixWorld(true);
+const boxBatches = new Map();
+const boxMeshes = [];
+regionalMap.traverse((obj) => {
+  if (!obj.isMesh || !obj.geometry?.parameters || obj.geometry.type !== 'BoxGeometry') return;
+  const p = obj.geometry.parameters;
+  const materialsForMesh = Array.isArray(obj.material) ? obj.material : [obj.material];
+  if (materialsForMesh.length !== 1) return;
+  const material = materialsForMesh[0];
+  const key = [p.width, p.height, p.depth, material.uuid].join('|');
+  if (!boxBatches.has(key)) boxBatches.set(key, { geometry: obj.geometry, material, matrices: [] });
+  const relative = new THREE.Matrix4().copy(regionalMap.matrixWorld).invert().multiply(obj.matrixWorld);
+  boxBatches.get(key).matrices.push(relative);
+  boxMeshes.push(obj);
+});
+for (const mesh of boxMeshes) mesh.removeFromParent();
+for (const batch of boxBatches.values()) {
+  const instances = new THREE.InstancedMesh(batch.geometry, batch.material, batch.matrices.length);
+  instances.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+  instances.castShadow = false;
+  instances.receiveShadow = false;
+  batch.matrices.forEach((matrix, i) => instances.setMatrixAt(i, matrix));
+  instances.instanceMatrix.needsUpdate = true;
+  regionalMap.add(instances);
+}
+renderer.info.autoReset = true;
+
 // Continuous sea plane underneath the entire 33-city region.
 // City terrain and roads stay above sea level; water is visible through the gaps
 // and around the outer coastline, without covering the playable map.
@@ -312,7 +342,7 @@ renderer.domElement.addEventListener('wheel',e=>{radius+=e.deltaY*.045;updateCam
 document.querySelector('#zoom-in')?.addEventListener('click',()=>{radius-=8;updateCamera();});
 document.querySelector('#zoom-out')?.addEventListener('click',()=>{radius+=8;updateCamera();});
 document.querySelector('#reset-view')?.addEventListener('click',()=>{yaw=.48;pitchAngle=.9;radius=210;target.set(0,0,0);updateCamera();});
-function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));}
+function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.0));}
 addEventListener('resize',resize);
 function animate(){requestAnimationFrame(animate);renderer.render(scene,camera);}
 animate();
