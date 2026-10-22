@@ -10,7 +10,7 @@ const deliverBtn = document.querySelector('#deliver');
 const statusEl = document.querySelector('#session-status');
 const tg = window.Telegram?.WebApp;
 const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-let balance = 1000, deliveries = 0, level = 1, busy = false;
+let balance = 1000, deliveries = 0, level = 1, busy = false, jobActive = false;\nconst moveButtons = document.querySelectorAll('[data-move]');
 
 if (tg) {
   tg.ready(); tg.expand();
@@ -77,15 +77,23 @@ async function syncPlayer(){
   try{const data=await api('/api/me');const p=data.player;balance=Number(p.balance);deliveries=Number(p.parcels_delivered);level=Number(p.level);updateHud();statusEl.textContent='ACCOUNT SYNCED';noticeEl.textContent='Telegram connected. Your deliveries are saved on the server.';}
   catch(e){statusEl.textContent='OFFLINE';noticeEl.textContent=e.message;}
 }
-deliverBtn.addEventListener('click',async()=>{
-  if(busy)return;
-  if(tg?.initData&&apiBase){
-    busy=true;deliverBtn.disabled=true;
-    try{const data=await api('/api/progress',{action:'deliver_parcel'});const p=data.player;balance=Number(p.balance);deliveries=Number(p.parcels_delivered);level=Number(p.level);noticeEl.textContent='Delivery confirmed. +$25 added to your account.';van.position.x=target.x;van.position.z=target.z;updateHud();}
-    catch(e){noticeEl.textContent=e.message;}
-    finally{busy=false;deliverBtn.disabled=false;}
-  }else{balance+=25;deliveries++;level=Math.floor(deliveries/5)+1;updateHud();noticeEl.textContent='Preview delivery completed (+$25). Open in Telegram to save progress.';van.position.x=target.x;van.position.z=target.z;statusEl.textContent='PREVIEW MODE';}
+function finishDelivery(){
+  if(!jobActive)return;
+  const distance=Math.hypot(van.position.x-target.x,van.position.z-target.z);
+  if(distance<1.35){balance+=25;deliveries++;level=Math.floor(deliveries/5)+1;jobActive=false;updateHud();deliverBtn.querySelector('span').textContent='TAKE NEXT ORDER';noticeEl.textContent='Order delivered at Downtown! +$25 earned. Take another order to continue.';statusEl.textContent='ORDER COMPLETE';pin.visible=true;ring.visible=true;}
+}
+deliverBtn.addEventListener('click',()=>{
+  if(jobActive){noticeEl.textContent='Drive the van to the orange delivery marker. Use the direction buttons below.';return;}
+  jobActive=true;pin.visible=true;ring.visible=true;deliverBtn.querySelector('span').textContent='DELIVERY IN PROGRESS';statusEl.textContent='DELIVERY ACTIVE';noticeEl.textContent='Order accepted. Drive from the depot to the orange marker to earn $25.';
 });
-function animate(t=0){requestAnimationFrame(animate);const time=t*.001;pin.position.y=.5+Math.sin(time*2.3)*.12;ring.rotation.z=time*.35;marker.rotation.z=-time*.15;const a=orbit+.64;camera.position.set(Math.sin(a)*19*zoom,13*zoom,Math.cos(a)*19*zoom);camera.lookAt(0,0,0);van.rotation.y=Math.sin(time*.35)*.035;renderer.render(scene,camera);}
-function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);}
-addEventListener('resize',resize);updateHud();syncPlayer();animate();
+function moveVan(dx,dz){
+  if(!jobActive){noticeEl.textContent='First accept the delivery order.';return;}
+  const nx=THREE.MathUtils.clamp(van.position.x+dx,-16,16),nz=THREE.MathUtils.clamp(van.position.z+dz,-16,16);
+  van.position.x=nx;van.position.z=nz;van.rotation.y=Math.atan2(dx,dz);
+  finishDelivery();
+}
+moveButtons.forEach(button=>{
+  const move=()=>{const dir=button.dataset.move;const step=1.0;moveVan(dir==='left'?-step:dir==='right'?step:0,dir==='up'?-step:dir==='down'?step:0);};
+  button.addEventListener('click',move);
+  button.addEventListener('pointerdown',e=>{e.preventDefault();move();});
+});
