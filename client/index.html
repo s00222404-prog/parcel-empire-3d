@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#101c22" />
+  <meta name="description" content="Build your parcel empire in a living 3D logistics city." />
+  <title>PARCEL EMPIRE 3D</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div id="game">
+    <canvas id="world" aria-label="3D parcel city"></canvas>
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">P</span><div><strong>PARCEL EMPIRE</strong><small>3D LOGISTICS TYCOON</small></div></div>
+      <div class="cash"><small>AVAILABLE FUNDS</small><strong id="balance">$1,000</strong></div>
+    </header>
+    <section class="mission panel">
+      <span class="eyebrow">YOUR FIRST CONTRACT</span>
+      <h1>Build. Deliver. Dominate.</h1>
+      <p>Start with one depot. Grow into the city's delivery empire.</p>
+      <div class="stats"><div><small>LEVEL</small><strong id="level">01</strong></div><div><small>DELIVERIES</small><strong id="deliveries">0</strong></div><div><small>NETWORK</small><strong>LOCAL</strong></div></div>
+    </section>
+    <div class="world-label"><span class="live-dot"></span> CITY NETWORK <span id="session-status">PREVIEW MODE</span></div>
+    <section class="bottom-panel panel">
+      <div class="contract-row"><div class="parcel-icon">▣</div><div class="contract-copy"><strong>Express parcel</strong><small>Depot → Downtown · 1 delivery</small></div><div class="reward">+$25</div></div>
+      <button id="deliver" type="button"><span>COMPLETE DELIVERY</span><span>↗</span></button>
+      <p id="notice" role="status">Explore the city. Open in Telegram to save your progress.</p>
+    </section>
+    <div class="controls-hint">DRAG TO ROTATE · SCROLL TO ZOOM</div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
