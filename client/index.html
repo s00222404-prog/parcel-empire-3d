@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#152a2d" />
+  <title>Parcel Empire — 3D City Map</title>
+</head>
+<body>
+  <main id="app">
+    <div id="map" aria-label="Интерактивная трёхмерная карта города"></div>
+    <header class="map-header">
+      <div class="brand-mark">P</div>
+      <div><h1>ГОРОД</h1><p>3D-КАРТА · ПРЕДВАРИТЕЛЬНАЯ СБОРКА</p></div>
+    </header>
+    <div class="map-help"><span class="help-dot"></span><span>Перетаскивай, чтобы вращать карту</span><span class="help-divider">·</span><span>Своди пальцы, чтобы менять масштаб</span></div>
+    <div class="map-controls" aria-label="Управление картой">
+      <button id="zoom-in" aria-label="Приблизить">＋</button>
+      <button id="zoom-out" aria-label="Отдалить">−</button>
+      <button id="reset-view" aria-label="Сбросить вид">↺</button>
+    </div>
+    <div class="map-coordinates">ГОРОДСКАЯ СЕТКА <span>·</span> 3D</div>
+  </main>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
