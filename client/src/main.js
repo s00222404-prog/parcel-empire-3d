@@ -8,21 +8,9 @@ const deliveriesEl = document.querySelector('#deliveries');
 const noticeEl = document.querySelector('#notice');
 const deliverBtn = document.querySelector('#deliver');
 const statusEl = document.querySelector('#session-status');
-const guideEl=document.querySelector('#guide');
-const guideNumber=document.querySelector('#guide-number');
-const guideTitle=document.querySelector('#guide-title');
-const guideText=document.querySelector('#guide-text');
-const guideProgress=document.querySelector('#guide-progress');
-const guideNext=document.querySelector('#guide-next');
-const tabPanel=document.querySelector('#tab-panel');
-const tabTitle=document.querySelector('#tab-title');
-const tabEyebrow=document.querySelector('#tab-eyebrow');
-const tabDescription=document.querySelector('#tab-description');
-const tabAction=document.querySelector('#tab-action');
 const tg = window.Telegram?.WebApp;
 const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-let balance = 1000, deliveries = 0, level = 1, busy = false, jobActive = false, guideStep = 1;
-const moveButtons = document.querySelectorAll('[data-move]');
+let balance = 1000, deliveries = 0, level = 1, busy = false;
 
 if (tg) {
   tg.ready(); tg.expand();
@@ -89,33 +77,15 @@ async function syncPlayer(){
   try{const data=await api('/api/me');const p=data.player;balance=Number(p.balance);deliveries=Number(p.parcels_delivered);level=Number(p.level);updateHud();statusEl.textContent='ACCOUNT SYNCED';noticeEl.textContent='Telegram connected. Your deliveries are saved on the server.';}
   catch(e){statusEl.textContent='OFFLINE';noticeEl.textContent=e.message;}
 }
-function renderGuide(){
-  if(guideStep>3){guideEl.hidden=true;return;}
-  guideEl.hidden=false;guideNumber.textContent=String(guideStep);guideProgress.style.width=((guideStep/3)*100)+'%';
-  const steps=[['Прими первый заказ','Нажми «Взять заказ». Твоя первая посылка появится на карте.','Понятно, дальше →'],['Управляй фургоном','Используй стрелки управления под заказом. Доедь до оранжевого маркера в центре города.','Я за рулём →'],['Заверши доставку','Подъедь к оранжевой точке. Награда начислится только после прибытия. Потом можно взять следующий заказ.','Начать игру →']];
-  guideTitle.textContent=steps[guideStep-1][0];guideText.textContent=steps[guideStep-1][1];guideNext.textContent=steps[guideStep-1][2];
-}
-guideNext.addEventListener('click',()=>{if(guideStep===1&&!jobActive){jobActive=true;deliverBtn.querySelector('span').textContent='ДОСТАВКА В ПРОЦЕССЕ';statusEl.textContent='ЗАКАЗ АКТИВЕН';noticeEl.textContent='Заказ принят! Веди фургон к оранжевому маркеру.';}guideStep=Math.min(3,guideStep+1);if(guideStep===3&&deliveries>0)guideStep=4;renderGuide();});
-document.querySelector('#guide-skip').addEventListener('click',()=>{guideStep=4;renderGuide();});
-const tabs={city:['ГОРОД','Твой город','Поворачивай камеру и исследуй 3D-город. Оранжевый маркер показывает место доставки.'],orders:['ЗАКАЗЫ','Список заказов','Прими активный заказ на панели доставки. Выполняй доставки, чтобы получать деньги и открывать развитие.'],build:['СТРОИТЕЛЬСТВО','Развивай сеть','Строительство скоро откроется. Следующая цель — накопить деньги на новый склад и расширить зону доставки.'],garage:['ГАРАЖ','Твой автопарк','Пока у тебя один фургон. Новые машины и улучшения автопарка появятся на следующем этапе развития игры.']};
-document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b===button));const item=tabs[button.dataset.tab];tabEyebrow.textContent=item[0];tabTitle.textContent=item[1];tabDescription.textContent=item[2];tabAction.innerHTML=button.dataset.tab==='orders'?'<button type="button" id="tab-order-action">Перейти к заказу ↓</button>':'';tabPanel.hidden=false;if(button.dataset.tab==='orders')document.querySelector('#tab-order-action').addEventListener('click',()=>{tabPanel.hidden=true;deliverBtn.scrollIntoView({behavior:'smooth',block:'center'});});}));
-document.querySelector('#tab-close').addEventListener('click',()=>tabPanel.hidden=true);
-function finishDelivery(){
-  if(!jobActive)return;
-  const distance=Math.hypot(van.position.x-target.x,van.position.z-target.z);
-  if(distance<1.35){balance+=25;deliveries++;level=Math.floor(deliveries/5)+1;jobActive=false;updateHud();deliverBtn.querySelector('span').textContent='ВЗЯТЬ СЛЕДУЮЩИЙ ЗАКАЗ';noticeEl.textContent='Доставка выполнена! +$25. Можешь взять следующий заказ.';statusEl.textContent='ЗАКАЗ ВЫПОЛНЕН';pin.visible=true;ring.visible=true;guideStep=4;renderGuide();}
-}
-deliverBtn.addEventListener('click',()=>{
-  if(jobActive){noticeEl.textContent='Веди фургон к оранжевому маркеру стрелками управления.';return;}
-  jobActive=true;pin.visible=true;ring.visible=true;deliverBtn.querySelector('span').textContent='ДОСТАВКА В ПРОЦЕССЕ';statusEl.textContent='ЗАКАЗ АКТИВЕН';noticeEl.textContent='Заказ принят. Доедь от склада до оранжевого маркера, чтобы получить $25.';
+deliverBtn.addEventListener('click',async()=>{
+  if(busy)return;
+  if(tg?.initData&&apiBase){
+    busy=true;deliverBtn.disabled=true;
+    try{const data=await api('/api/progress',{action:'deliver_parcel'});const p=data.player;balance=Number(p.balance);deliveries=Number(p.parcels_delivered);level=Number(p.level);noticeEl.textContent='Delivery confirmed. +$25 added to your account.';van.position.x=target.x;van.position.z=target.z;updateHud();}
+    catch(e){noticeEl.textContent=e.message;}
+    finally{busy=false;deliverBtn.disabled=false;}
+  }else{balance+=25;deliveries++;level=Math.floor(deliveries/5)+1;updateHud();noticeEl.textContent='Preview delivery completed (+$25). Open in Telegram to save progress.';van.position.x=target.x;van.position.z=target.z;statusEl.textContent='PREVIEW MODE';}
 });
-function moveVan(dx,dz){
-  if(!jobActive){noticeEl.textContent='Сначала возьми заказ.';return;}
-  const nx=THREE.MathUtils.clamp(van.position.x+dx,-16,16),nz=THREE.MathUtils.clamp(van.position.z+dz,-16,16);
-  van.position.x=nx;van.position.z=nz;van.rotation.y=Math.atan2(dx,dz);
-  finishDelivery();
-}
-moveButtons.forEach(button=>{
-  const move=()=>{const dir=button.dataset.move;const step=1.0;moveVan(dir==='left'?-step:dir==='right'?step:0,dir==='up'?-step:dir==='down'?step:0);};
-  button.addEventListener('pointerdown',e=>{e.preventDefault();move();});
-});
+function animate(t=0){requestAnimationFrame(animate);const time=t*.001;pin.position.y=.5+Math.sin(time*2.3)*.12;ring.rotation.z=time*.35;marker.rotation.z=-time*.15;const a=orbit+.64;camera.position.set(Math.sin(a)*19*zoom,13*zoom,Math.cos(a)*19*zoom);camera.lookAt(0,0,0);van.rotation.y=Math.sin(time*.35)*.035;renderer.render(scene,camera);}
+function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);}
+addEventListener('resize',resize);updateHud();syncPlayer();animate();
