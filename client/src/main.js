@@ -6,7 +6,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color('#b7d4d0');
 scene.fog = new THREE.Fog('#b7d4d0', 125, 230);
 
-const camera = new THREE.PerspectiveCamera(43, innerWidth / innerHeight, 0.1, 320);
+const camera = new THREE.PerspectiveCamera(43, innerWidth / innerHeight, 0.1, 420);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 renderer.setSize(innerWidth, innerHeight);
@@ -80,68 +80,61 @@ for(const x of xRoads) for(const z of zRoads){
   }
 }
 
-// Wide, gently winding river polygon crossing the city from north to south.
-const riverShape=new THREE.Shape();
-riverShape.moveTo(-14,72);
-riverShape.lineTo(-4,72);
-riverShape.bezierCurveTo(-10,48,10,35,3,16);
-riverShape.bezierCurveTo(-1,0,-14,-12,-7,-31);
-riverShape.bezierCurveTo(-1,-47,10,-57,7,-72);
-riverShape.lineTo(-9,-72);
-riverShape.bezierCurveTo(-7,-53,-20,-44,-19,-29);
-riverShape.bezierCurveTo(-21,-8,-7,2,-6,17);
-riverShape.bezierCurveTo(-5,35,-22,49,-14,72);
-const riverGeometry=new THREE.ShapeGeometry(riverShape,32);
-const river=new THREE.Mesh(riverGeometry,materials.water);
-river.rotation.x=-Math.PI/2;
-river.position.y=.13;
-river.receiveShadow=true;
-world.add(river);
-
-// Subtle banks along both sides of the river.
-function bankRibbon(points, width, material){
-  const curve=new THREE.CatmullRomCurve3(points.map(p=>new THREE.Vector3(p[0],.18,p[1])));
-  const pts=curve.getPoints(90);
-  const verts=[],indices=[];
-  for(let i=0;i<pts.length;i++){
-    const tangent=curve.getTangent(i/(pts.length-1));
-    const normal=new THREE.Vector3(-tangent.z,0,tangent.x).normalize();
-    const a=pts[i].clone().addScaledVector(normal,width/2);
-    const b=pts[i].clone().addScaledVector(normal,-width/2);
-    verts.push(a.x,a.y,a.z,b.x,b.y,b.z);
-    if(i<pts.length-1){const n=i*2;indices.push(n,n+1,n+2,n+1,n+3,n+2);}
-  }
-  const g=new THREE.BufferGeometry();
-  g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));g.setIndex(indices);g.computeVertexNormals();
-  const mesh=new THREE.Mesh(g,material);world.add(mesh);
+// Recessed canal along the boundary between city areas, not through the city centre.
+const canalShape=new THREE.Shape();
+canalShape.moveTo(37,72); canalShape.bezierCurveTo(34,50,40,37,38,18);
+canalShape.bezierCurveTo(36,0,43,-15,40,-32); canalShape.bezierCurveTo(37,-48,42,-60,39,-72);
+canalShape.lineTo(58,-72); canalShape.bezierCurveTo(61,-55,55,-44,58,-29);
+canalShape.bezierCurveTo(61,-10,54,4,57,20); canalShape.bezierCurveTo(60,39,54,52,58,72); canalShape.closePath();
+const canalBed=new THREE.Mesh(new THREE.ShapeGeometry(canalShape,40),mat('#536e68'));
+canalBed.rotation.x=-Math.PI/2; canalBed.position.y=-.42; canalBed.receiveShadow=true; world.add(canalBed);
+const waterShape=new THREE.Shape();
+waterShape.moveTo(42,72); waterShape.bezierCurveTo(39,50,45,37,43,18);
+waterShape.bezierCurveTo(41,0,48,-15,45,-32); waterShape.bezierCurveTo(42,-48,47,-60,44,-72);
+waterShape.lineTo(52,-72); waterShape.bezierCurveTo(55,-55,49,-44,52,-29);
+waterShape.bezierCurveTo(55,-10,48,4,51,20); waterShape.bezierCurveTo(54,39,48,52,52,72); waterShape.closePath();
+const water=new THREE.Mesh(new THREE.ShapeGeometry(waterShape,40),materials.water);
+water.rotation.x=-Math.PI/2; water.position.y=-.19; water.receiveShadow=true; world.add(water);
+// Raised grass embankments and concrete channel edges.
+const bankMat=mat('#71947c');
+for(const side of [-1,1]){
+  const x=side<0?39.5:55.5;
+  slab(4.5,.42,144,bankMat,x,-.02,0,world);
+  slab(.34,.18,144,materials.sidewalk,side<0?41.5:53,-.02,0);
 }
-bankRibbon([[-13,60],[-7,40],[-9,22],[-14,4],[-14,-15],[-5,-34],[0,-55]],.65,materials.waterLight);
-bankRibbon([[-5,60],[1,40],[-2,22],[-7,4],[-7,-15],[2,-34],[7,-55]],.45,materials.waterLight);
-
-// Bridge decks are placed exactly where roads meet the river.
-function makeBridge(axis, position, centerZ=0){
-  const length=axis==='x'?17:17;
-  const deck=slab(axis==='x'?length:7.8,.65,axis==='x'?7.8:length,materials.bridge,axis==='x'?position:position,.52,axis==='x'?centerZ:position,world,true);
-  // Raised edge rails with regular posts.
+// Bridges cross the channel at actual road approaches and connect both sides.
+function makeBridge(position, centerZ=0){
+  slab(21,.42,8.2,materials.bridge,position,.18,centerZ,world,true);
   for(const side of [-1,1]){
-    if(axis==='x'){
-      slab(length,.22,.22,materials.bridgeSide,position,.98,centerZ+side*3.65);
-      for(let t=-7;t<=7;t+=3.5) slab(.16,.55,.16,materials.bridgeSide,position+t,1.18,centerZ+side*3.65);
-    }else{
-      slab(.22,.22,length,materials.bridgeSide,position+side*3.65,.98,position);
-      for(let t=-7;t<=7;t+=3.5) slab(.16,.55,.16,materials.bridgeSide,position+side*3.65,1.18,position+t);
-    }
+    slab(21,.18,.2,materials.bridgeSide,position,.55,centerZ+side*3.85);
+    for(let t=-9;t<=9;t+=3) slab(.14,.5,.14,materials.bridgeSide,position+t,.78,centerZ+side*3.85);
   }
-  // Dashed centre line across the deck.
-  if(axis==='x') for(let t=-6;t<=6;t+=4) flat(2.1,.12,materials.yellow,position+t,centerZ,.86);
-  else for(let t=-6;t<=6;t+=4) flat(.12,2.1,materials.yellow,position,position+t,.86);
+  for(let t=-7;t<=7;t+=4) flat(2.1,.13,materials.yellow,position+t,centerZ,.42);
 }
-makeBridge('x',0,0);
-makeBridge('x',-20,-30);
-makeBridge('x',20,30);
-makeBridge('z',-20,-20);
-makeBridge('z',20,20);
+for(const z of [-48,-24,0,24,48]) makeBridge(49,z);
 
+// The regional map contains 33 distinct, named city areas. Buildings remain disabled.
+function cityLabel(name,x,z){
+  const canvas=document.createElement('canvas'); canvas.width=512; canvas.height=128;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='rgba(15,37,38,.82)'; ctx.beginPath(); ctx.roundRect(8,8,496,112,22); ctx.fill();
+  ctx.strokeStyle='#d4ff63'; ctx.lineWidth=4; ctx.stroke();
+  ctx.font='700 42px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#f2f7e9';
+  ctx.fillText(name,256,64);
+  const texture=new THREE.CanvasTexture(canvas); texture.colorSpace=THREE.SRGBColorSpace;
+  const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthWrite:false}));
+  sprite.position.set(x,1.8,z); sprite.scale.set(10,2.5,1); world.add(sprite);
+}
+const cityPositions=[];
+for(let row=0;row<3;row++) for(let col=0;col<11;col++){
+  const x=-70+col*13.5, z=-48+row*48;
+  if(x>30 && x<62) continue;
+  cityPositions.push([x,z]);
+}
+for(let i=0;i<33;i++){
+  const p=cityPositions[i];
+  if(p) cityLabel('ГОРОД '+String(i+1).padStart(2,'0'),p[0],p[1]);
+}
 // Traffic lights on corners of selected intersections; each has red, amber and green lenses.
 function trafficLight(x,z,rotation=0){
   const group=new THREE.Group();
@@ -168,11 +161,11 @@ for(const [x,z] of [[-50,0],[50,0],[-40,40],[40,-40]]){
 }
 
 const target=new THREE.Vector3(0,0,0);
-let yaw=.48,pitchAngle=.9,radius=126;
+let yaw=.48,pitchAngle=.9,radius=155;
 let dragging=false,lastX=0,lastY=0;
 function updateCamera(){
   pitchAngle=THREE.MathUtils.clamp(pitchAngle,.38,1.25);
-  radius=THREE.MathUtils.clamp(radius,58,155);
+  radius=THREE.MathUtils.clamp(radius,72,190);
   camera.position.set(target.x+radius*Math.sin(yaw)*Math.cos(pitchAngle),radius*Math.sin(pitchAngle),target.z+radius*Math.cos(yaw)*Math.cos(pitchAngle));
   camera.lookAt(target);
 }
@@ -185,7 +178,7 @@ renderer.domElement.addEventListener('pointercancel',()=>dragging=false);
 renderer.domElement.addEventListener('wheel',e=>{radius+=e.deltaY*.045;updateCamera();},{passive:true});
 document.querySelector('#zoom-in')?.addEventListener('click',()=>{radius-=8;updateCamera();});
 document.querySelector('#zoom-out')?.addEventListener('click',()=>{radius+=8;updateCamera();});
-document.querySelector('#reset-view')?.addEventListener('click',()=>{yaw=.48;pitchAngle=.9;radius=126;target.set(0,0,0);updateCamera();});
+document.querySelector('#reset-view')?.addEventListener('click',()=>{yaw=.48;pitchAngle=.9;radius=155;target.set(0,0,0);updateCamera();});
 function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));}
 addEventListener('resize',resize);
 function animate(){requestAnimationFrame(animate);renderer.render(scene,camera);}
