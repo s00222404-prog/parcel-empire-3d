@@ -13,7 +13,7 @@ const renderer = new THREE.WebGLRenderer({
   stencil: false,
   depth: true
 });
-renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.1));
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.NoToneMapping;
@@ -201,7 +201,7 @@ function resize() {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.1));
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
 }
 addEventListener('resize', resize);
 
@@ -213,7 +213,7 @@ const perf = {
   frames: 0,
   lastFpsUpdate: performance.now(),
   fps: 30,
-  pixelRatio: Math.min(devicePixelRatio || 1, 1.1),
+  pixelRatio: Math.min(devicePixelRatio || 1, 1.5),
   slowSamples: 0,
   fastSamples: 0
 };
@@ -232,7 +232,7 @@ function adaptQuality(now) {
   perf.frames = 0;
   perf.lastSample = now;
   // Keep the map sharp on phones while lowering resolution only if FPS actually drops.
-  if (perf.fps < 22) {
+  if (perf.fps < 18) {
     perf.slowSamples++;
     perf.fastSamples = 0;
   } else if (perf.fps > 29) {
@@ -242,13 +242,13 @@ function adaptQuality(now) {
     perf.slowSamples = Math.max(0, perf.slowSamples - 1);
     perf.fastSamples = 0;
   }
-  if (perf.slowSamples >= 2 && perf.pixelRatio > 0.8) {
-    perf.pixelRatio = Math.max(0.8, perf.pixelRatio - 0.1);
+  if (perf.slowSamples >= 2 && perf.pixelRatio > 1.0) {
+    perf.pixelRatio = Math.max(1.0, perf.pixelRatio - 0.1);
     renderer.setPixelRatio(perf.pixelRatio);
     renderer.setSize(innerWidth, innerHeight);
     perf.slowSamples = 0;
-  } else if (perf.fastSamples >= 8 && perf.pixelRatio < Math.min(devicePixelRatio || 1, 1.35)) {
-    perf.pixelRatio = Math.min(Math.min(devicePixelRatio || 1, 1.35), perf.pixelRatio + 0.05);
+  } else if (perf.fastSamples >= 8 && perf.pixelRatio < Math.min(devicePixelRatio || 1, 1.5)) {
+    perf.pixelRatio = Math.min(Math.min(devicePixelRatio || 1, 1.5), perf.pixelRatio + 0.05);
     renderer.setPixelRatio(perf.pixelRatio);
     renderer.setSize(innerWidth, innerHeight);
     perf.fastSamples = 0;
