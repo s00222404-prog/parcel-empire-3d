@@ -4,9 +4,9 @@ import * as THREE from 'three';
 const host = document.querySelector('#map');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#b7d4d0');
-scene.fog = new THREE.Fog('#b7d4d0', 125, 230);
+scene.fog = new THREE.Fog('#b7d4d0', 900, 2400);
 
-const camera = new THREE.PerspectiveCamera(43, innerWidth / innerHeight, 0.1, 420);
+const camera = new THREE.PerspectiveCamera(43, innerWidth / innerHeight, 0.1, 5000);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 renderer.setSize(innerWidth, innerHeight);
@@ -151,6 +151,74 @@ for(const [x,z] of [[-40,-30],[-20,-10],[0,10],[20,30],[40,-10],[-60,30],[60,10]
   trafficLight(x-4.8,z-4.8,-Math.PI/4);
 }
 
+// Turn the current road-and-canal layout into a reusable city template.
+const cityTemplate=new THREE.Group();
+for(const child of [...world.children]){
+  world.remove(child);
+  if(child.isSprite) continue; // replace the prototype labels with one label per city
+  cityTemplate.add(child);
+}
+const regionalMap=new THREE.Group();
+world.add(regionalMap);
+const cityAnchors=[];
+const columns=6, rows=6;
+let regionId=1;
+for(let row=0;row<rows && regionId<=33;row++){
+  for(let col=0;col<columns && regionId<=33;col++){
+    // Slightly irregular spacing makes the region feel like a real map, not a perfect grid.
+    const x=col*224+(row%2?26:0)+(col%3)*9;
+    const z=row*190+(col%2?17:0)+(row%3)*7;
+    const city=cityTemplate.clone(true);
+    city.position.set(x,0,z);
+    regionalMap.add(city);
+    cityAnchors.push({id:regionId,x,z});
+    regionId++;
+  }
+}
+function cityNameTag(name,x,z){
+  const canvas=document.createElement('canvas'); canvas.width=512; canvas.height=128;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='rgba(15,37,38,.92)'; ctx.beginPath(); ctx.roundRect(8,8,496,112,22); ctx.fill();
+  ctx.strokeStyle='#d4ff63'; ctx.lineWidth=4; ctx.stroke();
+  ctx.font='700 42px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#f2f7e9';
+  ctx.fillText(name,256,64);
+  const texture=new THREE.CanvasTexture(canvas); texture.colorSpace=THREE.SRGBColorSpace;
+  const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthWrite:false}));
+  sprite.position.set(x,3.4,z); sprite.scale.set(22,5.5,1); regionalMap.add(sprite);
+}
+for(const city of cityAnchors) cityNameTag('ГОРОД '+String(city.id).padStart(2,'0'),city.x,city.z);
+
+// Connect neighboring city road networks with long intercity highways.
+const highwayMat=materials.road, shoulderMat=materials.roadEdge;
+function intercityRoad(x1,z1,x2,z2){
+  const dx=x2-x1,dz=z2-z1,len=Math.hypot(dx,dz),angle=Math.atan2(dx,dz);
+  const road=slab(8,.18,len,highwayMat,(x1+x2)/2,.02,(z1+z2)/2,regionalMap);
+  road.rotation.y=angle;
+  for(const side of [-1,1]){
+    const edge=slab(.32,.14,len,shoulderMat,(x1+x2)/2,.08,(z1+z2)/2,regionalMap);
+    edge.rotation.y=angle;
+    edge.position.x+=Math.cos(angle)*side*4.15;
+    edge.position.z-=Math.sin(angle)*side*4.15;
+  }
+  // Broken centre line, aligned to the route.
+  for(let d=-len/2+5;d<len/2-3;d+=10){
+    const mark=slab(.22,.08,3.4,materials.white,(x1+x2)/2,.13,(z1+z2)/2,regionalMap);
+    mark.rotation.y=angle;
+    mark.position.x+=Math.sin(angle)*d;
+    mark.position.z+=Math.cos(angle)*d;
+  }
+}
+for(let i=0;i<cityAnchors.length;i++){
+  const a=cityAnchors[i], col=i%columns, row=Math.floor(i/columns);
+  if(col<columns-1 && i+1<cityAnchors.length){
+    const b=cityAnchors[i+1];
+    intercityRoad(a.x+78,a.z,b.x-78,b.z);
+  }
+  if(row<rows-1 && i+columns<cityAnchors.length){
+    const b=cityAnchors[i+columns];
+    intercityRoad(a.x,a.z+64,b.x,b.z-64);
+  }
+}
 // A few low islands and pedestrian paths to give the empty map scale, without any buildings.
 for(const [x,z] of [[-50,0],[50,0],[-40,40],[40,-40]]){
   flat(6.2,2.0,materials.field,x,z,.12);
@@ -162,7 +230,7 @@ let yaw=.48,pitchAngle=.9,radius=155;
 let dragging=false,lastX=0,lastY=0;
 function updateCamera(){
   pitchAngle=THREE.MathUtils.clamp(pitchAngle,.38,1.25);
-  radius=THREE.MathUtils.clamp(radius,72,190);
+  radius=THREE.MathUtils.clamp(radius,72,1800);
   camera.position.set(target.x+radius*Math.sin(yaw)*Math.cos(pitchAngle),radius*Math.sin(pitchAngle),target.z+radius*Math.cos(yaw)*Math.cos(pitchAngle));
   camera.lookAt(target);
 }
