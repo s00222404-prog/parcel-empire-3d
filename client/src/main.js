@@ -147,43 +147,43 @@ for (let row = 0; row < rows && cities.length < 33; row++) {
     houseLots.forEach(([ox, oz], houseIndex) => {
       const hx = x + ox, hz = z + oz;
       const floors = 2 + ((city.id + houseIndex) % 3 === 0 ? 1 : 0);
-      const height = floors * 4.2;
+      const height = floors * 5.2;
       const wall = housePalette[(city.id + houseIndex) % housePalette.length];
 
       // Main wall volume and a slightly overhanging roof.
-      addBox(7.4, height, 7.4, wall, hx, height / 2 + 0.16, hz);
-      addBox(8.1, 0.65, 8.1, (houseIndex % 3 === 0 ? M.roofRed : M.roof),
-        hx, height + 0.48, hz);
+      addBox(12, height, 12, wall, hx, height / 2 + 0.16, hz);
+      addBox(13, 0.85, 13, (houseIndex % 3 === 0 ? M.roofRed : M.roof),
+        hx, height + 0.58, hz);
 
       // Front entrance: frame, door panel, handle and small canopy.
-      addBox(1.65, 2.45, 0.22, M.windowFrame, hx, 1.42, hz - 3.82);
-      addBox(1.25, 2.05, 0.12, M.door, hx, 1.32, hz - 3.98);
-      addBox(0.12, 0.12, 0.08, M.doorLight, hx + 0.38, 1.35, hz - 4.08);
-      addBox(2.1, 0.22, 1.1, M.roof, hx, 2.68, hz - 4.15);
+      addBox(1.9, 2.8, 0.22, M.windowFrame, hx, 1.62, hz - 6.12);
+      addBox(1.5, 2.4, 0.12, M.door, hx, 1.48, hz - 6.28);
+      addBox(0.12, 0.12, 0.08, M.doorLight, hx + 0.48, 1.5, hz - 6.38);
+      addBox(2.5, 0.25, 1.5, M.roof, hx, 3.0, hz - 6.45);
 
       // Front windows have cream frames, blue glass and projecting sills.
       for (let floor = 0; floor < floors; floor++) {
-        const wy = 2.45 + floor * 4.05;
-        for (const wx of [-2.05, 2.05]) {
-          addBox(1.35, 1.55, 0.2, M.windowFrame, hx + wx, wy, hz - 3.82);
-          addBox(1.03, 1.22, 0.1, M.windowGlass, hx + wx, wy + 0.02, hz - 3.96);
-          addBox(1.45, 0.16, 0.35, M.sill, hx + wx, wy - 0.82, hz - 3.95);
-          addBox(0.1, 1.22, 0.08, M.windowFrame, hx + wx, wy + 0.02, hz - 4.03);
-          addBox(1.03, 0.1, 0.08, M.windowFrame, hx + wx, wy + 0.02, hz - 4.03);
+        const wy = 2.8 + floor * 5.0;
+        for (const wx of [-3.2, 3.2]) {
+          addBox(1.8, 2.0, 0.2, M.windowFrame, hx + wx, wy, hz - 6.12);
+          addBox(1.42, 1.62, 0.1, M.windowGlass, hx + wx, wy + 0.02, hz - 6.26);
+          addBox(1.95, 0.18, 0.45, M.sill, hx + wx, wy - 1.05, hz - 6.25);
+          addBox(0.12, 1.62, 0.08, M.windowFrame, hx + wx, wy + 0.02, hz - 6.33);
+          addBox(1.42, 0.12, 0.08, M.windowFrame, hx + wx, wy + 0.02, hz - 6.33);
         }
       }
 
       // Two simple side windows add depth when the camera rotates.
       for (let floor = 0; floor < floors; floor++) {
         const wy = 2.45 + floor * 4.05;
-        for (const wz of [-1.8, 1.8]) {
-          addBox(0.2, 1.45, 1.25, M.windowFrame, hx + 3.82, wy, hz + wz);
-          addBox(0.1, 1.12, 0.98, M.windowGlass, hx + 3.96, wy, hz + wz);
+        for (const wz of [-3, 3]) {
+          addBox(0.2, 1.8, 1.65, M.windowFrame, hx + 6.12, wy, hz + wz);
+          addBox(0.1, 1.42, 1.32, M.windowGlass, hx + 6.26, wy, hz + wz);
         }
       }
 
       // Small front step.
-      addBox(2.1, 0.2, 0.75, M.bridge, hx, 0.18, hz - 4.35);
+      addBox(2.5, 0.25, 1.0, M.bridge, hx, 0.2, hz - 6.6);
     });
 
     // A small green square park in every city.
